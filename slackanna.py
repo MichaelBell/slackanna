@@ -1,47 +1,29 @@
-import cherrypy
-import simplejson
 import requests
 import re
+
+import cherrypy
+import grpc
+
+import wordfind_pb2
+import wordfind_pb2_grpc
 
 with open("token") as file:
   TOKEN=file.read().strip()
 
-class Words:
-    def __init__(self):
-        self.diction = []
-        self.sorted_diction = {}
-        f = open('/usr/share/dict/american-english')
-        for l in f:
-            w = l.strip().upper()
-            self.diction.append(w)
-            sw = "".join(sorted(w))
-            if sw in self.sorted_diction: self.sorted_diction[sw].append(w)
-            else: self.sorted_diction[sw] = [w]
-
+class WordStub:
     def anagram(self, word):
-        word = word.upper()
-        sw = "".join(sorted(word))
-        if sw not in self.sorted_diction: return ""
-        d = self.sorted_diction[sw]
-        result = ""
-        for w in d:
-            if w != word: result += "%s " % w
-        return result
+        with grpc.insecure_channel('localhost:50051') as channel:
+            stub = wordfind_pb2_grpc.WordFindStub(channel)
+            anagrams = stub.GetAnagrams(wordfind_pb2.Word(word=word))
+            return " ".join([w.word for w in anagrams])
 
     def match(self, pattern):
-        print pattern
-        try:
-            compiled_pattern = re.compile(pattern.upper())
-        except:
-            return "Bad pattern"
-        result = ""
-        for w in self.diction:
-            if compiled_pattern.match(w):
-                result += "%s " % w
-        if result == "": return "No matches"
-        return result
+        with grpc.insecure_channel('localhost:50051') as channel:
+            stub = wordfind_pb2_grpc.WordFindStub(channel)
+            anagrams = stub.GetMatchingWords(wordfind_pb2.Pattern(pattern=pattern))
+            return " ".join([w.word for w in anagrams])
 
-words = Words()
+words = WordStub()
 mention_text_pattern = re.compile('\W*<@U[A-Z0-9]*>')
 anagram_text_pattern = re.compile('\W*<@U[A-Z0-9]*>(.*[Aa]nagram(s of)?)?\W*(\w+)')
 pattern_text_pattern = re.compile('\W*<@U[A-Z0-9]*>.*([Mm]atch(ing)?)\s+(\S+)')
@@ -74,7 +56,7 @@ class HelloWorld(object):
         body = cherrypy.request.json
         if 'challenge' in body:
             return {'challenge':body['challenge']}
-        print body
+        print(body)
         if 'event' in body:
             event = body['event']
             if 'type' in event and event['type'] in (u'app_mention', u'message') and mention_text_pattern.match(event['text']):
@@ -85,11 +67,11 @@ class HelloWorld(object):
                 try:
                     reqdata['text'] = self.process_request(text)
                 except (IndexError, ValueError, AttributeError): pass
-                print reqdata
-                print requests.post('https://api.slack.com/api/chat.postMessage', reqdata)
+                print(reqdata)
+                print(requests.post('https://api.slack.com/api/chat.postMessage', reqdata))
         return {}
 
-
-cherrypy.config.update({'server.socket_host': '0.0.0.0',
+if __name__ == "__main__":
+    cherrypy.config.update({'server.socket_host': '0.0.0.0',
                         'server.socket_port': 8081})
-cherrypy.quickstart(HelloWorld())
+    cherrypy.quickstart(HelloWorld())

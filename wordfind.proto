@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package rebelpuzzle;
+
+service WordFind {
+  // Get all anagrams of the given word, which need not be a dictionary word
+  // Returns all words that match, except the given word
+  rpc GetAnagrams(Word) returns (stream Word) {}
+
+  // Get all words matching the given regular expression
+  // Pattern normally mathces anywhere in the word, use ^ and $ to match
+  // start and end.
+  rpc GetMatchingWords(Pattern) returns (stream Word) {}
+}
+
+// Simple wrapper of a string to indicate the string should represent a word
+message Word {
+  string word = 1;
+}
+
+// Simple wrapper of a string to indicate the string should represent a regex pattern
+message Pattern {
+  string pattern = 1;
+}
